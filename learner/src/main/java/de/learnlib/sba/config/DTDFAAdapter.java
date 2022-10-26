@@ -21,13 +21,17 @@ import net.automatalib.words.Alphabet;
 
 public class DTDFAAdapter<I> extends DiscriminationTreeAdapter<I> implements ProceduralLearner<I> {
 
+
+    private final Alphabet<I> alphabet;
+
     public DTDFAAdapter(Alphabet<I> alphabet, MembershipOracle<I, Boolean> oracle) {
         super(alphabet, oracle);
+        this.alphabet = alphabet;
     }
 
     @Override
     public Alphabet<I> getInputAlphabet() {
-        return super.alphabet;
+        return this.alphabet;
     }
 }
 
