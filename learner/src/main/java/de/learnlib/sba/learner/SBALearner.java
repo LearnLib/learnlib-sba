@@ -227,9 +227,26 @@ public class SBALearner<I, L extends ProceduralLearner<SymbolWrapper<I>>>
                 stateIter = succ;
                 idx++;
             }
+        } else {
+            int lower = 0;
+            int upper = input.size() - 1;
+            int result = input.size();
+
+            while (upper - lower > -1) {
+                int mid = lower + (upper - lower) / 2;
+                boolean answer = this.oracle.answerQuery(input.prefix(mid));
+                if (answer) {
+                    lower = mid + 1;
+                } else {
+                    result = mid;
+                    upper = mid - 1;
+                }
+            }
+
+            return result - 1;
         }
 
-        return input.size() - 1;
+        throw new IllegalStateException("Could not properly analyze CE");
     }
 
     private DefaultQuery<SymbolWrapper<I>, Boolean> constructLocalCE(Word<I> input, boolean output) {
