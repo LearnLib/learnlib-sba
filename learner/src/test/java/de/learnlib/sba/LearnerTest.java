@@ -14,13 +14,25 @@
  */
 package de.learnlib.sba;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.function.Function;
 
+import de.learnlib.api.oracle.EquivalenceOracle;
+import de.learnlib.api.oracle.MembershipOracle;
+import de.learnlib.api.oracle.SingleQueryOracle;
+import de.learnlib.api.query.DefaultQuery;
+import de.learnlib.oracle.equivalence.SampleSetEQOracle;
+import de.learnlib.oracle.membership.SimulatorOracle;
 import de.learnlib.sba.api.ATProvider;
 import de.learnlib.sba.api.LearnerProvider;
 import de.learnlib.sba.api.ProceduralLearner;
 import de.learnlib.sba.api.SBA;
+import de.learnlib.sba.config.DTDFAAdapter;
+import de.learnlib.sba.config.LStarDFAAdapter;
+import de.learnlib.sba.config.OptimalTTTDFAAdapter;
 import de.learnlib.sba.config.TTTDFAAdapter;
 import de.learnlib.sba.config.TTTPCDFAAdapter;
 import de.learnlib.sba.impl.DefaultATProvider;
@@ -31,10 +43,6 @@ import de.learnlib.sba.util.KeylockSBAs;
 import de.learnlib.sba.util.RandomSBAs;
 import de.learnlib.sba.util.SBAUtil;
 import de.learnlib.sba.util.SimulatorEQOracle;
-import de.learnlib.api.oracle.EquivalenceOracle;
-import de.learnlib.api.oracle.MembershipOracle;
-import de.learnlib.api.query.DefaultQuery;
-import de.learnlib.oracle.membership.SimulatorOracle;
 import net.automatalib.words.SPAAlphabet;
 import net.automatalib.words.impl.Alphabets;
 import net.automatalib.words.impl.DefaultSPAAlphabet;
@@ -58,37 +66,86 @@ public class LearnerTest {
         keylock = KeylockSBAs.create(alphabet, 10, new Random(69));
     }
 
-    @DataProvider(name = "atProviders")
-    public <I> Object[][] dataProvider() {
-        return new Object[][] {new Object[] {complete, new DefaultSetup<I>()},
-                               new Object[] {partial, new DefaultSetup<I>()},
-                               new Object[] {keylock, new DefaultSetup<I>()},
-                               new Object[] {complete, new OptimizingSetup<I>()},
-                               new Object[] {partial, new OptimizingSetup<I>()},
-                               new Object[] {keylock, new OptimizingSetup<>()}};
+    @DataProvider(name = "configProvider")
+    public <I> Object[][] configProvider() {
+
+        final List<SBA<?, Integer>> systems = Arrays.asList(complete, partial, keylock);
+        final List<Function<SPAAlphabet<I>, ATProvider<I>>> atProviders =
+                Arrays.asList(new DefaultSetup<>(), new OptimizingSetup<>());
+        final List<Function<SBA<?, I>, EquivalenceOracle<? super SBA<?, I>, I, Boolean>>> eqProviders =
+                Arrays.asList(new SimulatorProvider<>(), new CharacterizingProvider<>());
+
+        final List<Object[]> result = new ArrayList<>(systems.size() * atProviders.size() * eqProviders.size());
+
+        for (SBA<?, Integer> system : systems) {
+            for (Function<SPAAlphabet<I>, ATProvider<I>> atProvider : atProviders) {
+                for (Function<SBA<?, I>, EquivalenceOracle<? super SBA<?, I>, I, Boolean>> eqProvider : eqProviders) {
+                    result.add(new Object[] {system, atProvider, eqProvider});
+                }
+            }
+        }
+
+        return result.toArray(new Object[result.size()][]);
     }
 
-    @Test(dataProvider = "atProviders")
-    public void testTTT(SBA<?, Integer> sba, Function<SPAAlphabet<Integer>, ATProvider<Integer>> atProvider) {
+    @Test(dataProvider = "configProvider")
+    public void testLStar(SBA<?, Integer> sba,
+                          Function<SPAAlphabet<Integer>, ATProvider<Integer>> atProvider,
+                          Function<SBA<?, Integer>, EquivalenceOracle<? super SBA<?, Integer>, Integer, Boolean>> eqProvider) {
+        learningLoop(sba,
+                     (LearnerProvider<SymbolWrapper<Integer>, LStarDFAAdapter<SymbolWrapper<Integer>>>) LStarDFAAdapter::new,
+                     atProvider,
+                     eqProvider);
+    }
+
+    @Test(dataProvider = "configProvider")
+    public void testDT(SBA<?, Integer> sba,
+                       Function<SPAAlphabet<Integer>, ATProvider<Integer>> atProvider,
+                       Function<SBA<?, Integer>, EquivalenceOracle<? super SBA<?, Integer>, Integer, Boolean>> eqProvider) {
+        learningLoop(sba,
+                     (LearnerProvider<SymbolWrapper<Integer>, DTDFAAdapter<SymbolWrapper<Integer>>>) DTDFAAdapter::new,
+                     atProvider,
+                     eqProvider);
+    }
+
+    @Test(dataProvider = "configProvider")
+    public void testOptimalTTT(SBA<?, Integer> sba,
+                               Function<SPAAlphabet<Integer>, ATProvider<Integer>> atProvider,
+                               Function<SBA<?, Integer>, EquivalenceOracle<? super SBA<?, Integer>, Integer, Boolean>> eqProvider) {
+        learningLoop(sba,
+                     (LearnerProvider<SymbolWrapper<Integer>, OptimalTTTDFAAdapter<SymbolWrapper<Integer>>>) OptimalTTTDFAAdapter::new,
+                     atProvider,
+                     eqProvider);
+    }
+
+    @Test(dataProvider = "configProvider")
+    public void testTTT(SBA<?, Integer> sba,
+                        Function<SPAAlphabet<Integer>, ATProvider<Integer>> atProvider,
+                        Function<SBA<?, Integer>, EquivalenceOracle<? super SBA<?, Integer>, Integer, Boolean>> eqProvider) {
         learningLoop(sba,
                      (LearnerProvider<SymbolWrapper<Integer>, TTTDFAAdapter<SymbolWrapper<Integer>>>) TTTDFAAdapter::new,
-                     atProvider);
+                     atProvider,
+                     eqProvider);
     }
 
-    @Test(dataProvider = "atProviders")
-    public void testPCTTT(SBA<?, Integer> sba, Function<SPAAlphabet<Integer>, ATProvider<Integer>> atProvider) {
+    @Test(dataProvider = "configProvider")
+    public void testPCTTT(SBA<?, Integer> sba,
+                          Function<SPAAlphabet<Integer>, ATProvider<Integer>> atProvider,
+                          Function<SBA<?, Integer>, EquivalenceOracle<? super SBA<?, Integer>, Integer, Boolean>> eqProvider) {
         learningLoop(sba,
                      (LearnerProvider<SymbolWrapper<Integer>, TTTPCDFAAdapter<SymbolWrapper<Integer>>>) TTTPCDFAAdapter::new,
-                     atProvider);
+                     atProvider,
+                     eqProvider);
     }
 
-    private <I, L extends ProceduralLearner<SymbolWrapper<I>>> void learningLoop(final SBA<?, I> system,
-                                                                                 final LearnerProvider<SymbolWrapper<I>, L> adapter,
-                                                                                 final Function<SPAAlphabet<I>, ATProvider<I>> atProvider) {
+    private <I, L extends ProceduralLearner<SymbolWrapper<I>>> void learningLoop(SBA<?, I> system,
+                                                                                 LearnerProvider<SymbolWrapper<I>, L> adapter,
+                                                                                 Function<SPAAlphabet<I>, ATProvider<I>> atProvider,
+                                                                                 Function<SBA<?, I>, EquivalenceOracle<? super SBA<?, I>, I, Boolean>> eqProvider) {
 
         final SPAAlphabet<I> alphabet = system.getInputAlphabet();
         final MembershipOracle<I, Boolean> mqOracle = new SimulatorOracle<>(system);
-        final EquivalenceOracle<SBA<?, I>, I, Boolean> eqOracle = new SimulatorEQOracle<>(system);
+        final EquivalenceOracle<? super SBA<?, I>, I, Boolean> eqOracle = eqProvider.apply(system);
 
         final SBALearner<I, ?> learner = new SBALearner<>(alphabet, mqOracle, adapter, atProvider.apply(alphabet));
 
@@ -134,6 +191,37 @@ public class LearnerTest {
         @Override
         public String toString() {
             return "OptimizingATProvider";
+        }
+    }
+
+    private static class SimulatorProvider<I>
+            implements Function<SBA<?, I>, EquivalenceOracle<? super SBA<?, I>, I, Boolean>> {
+
+        @Override
+        public EquivalenceOracle<? super SBA<?, I>, I, Boolean> apply(SBA<?, I> sba) {
+            return new SimulatorEQOracle<>(sba);
+        }
+
+        @Override
+        public String toString() {
+            return "SimulatorProvider";
+        }
+    }
+
+    private static class CharacterizingProvider<I>
+            implements Function<SBA<?, I>, EquivalenceOracle<? super SBA<?, I>, I, Boolean>> {
+
+        @Override
+        public EquivalenceOracle<? super SBA<?, I>, I, Boolean> apply(SBA<?, I> sba) {
+            final SampleSetEQOracle<I, Boolean> oracle = new SampleSetEQOracle<>(false);
+            oracle.addAll((SingleQueryOracle<I, Boolean>) sba::computeSuffixOutput,
+                          SBAUtil.characterizingSet(sba, sba.getInputAlphabet()));
+            return oracle;
+        }
+
+        @Override
+        public String toString() {
+            return "CharacterizingProvider";
         }
     }
 }
