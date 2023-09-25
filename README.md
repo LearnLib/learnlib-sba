@@ -1,3 +1,7 @@
+**This tool will be/is included in LearnLib v0.17**
+
+---
+
 This tool introduces the concept of *Systems of Behavioral Automata* (SBAs), an extension to [SPAs](https://github.com/LearnLib/learnlib-spa) that support prefix-closure.
 For running the tool, you need
 
